@@ -32,24 +32,27 @@ Le chiavi salvate nella Yubikey [non sono esportabili](https://web.archive.org/w
    * [SSH](#ssh)
       + [Prerequisti](#prerequisiti)
       + [Cambio PIN e PUK](#cambio-pin-e-puk)
-      + [](#)
+      + [Creazione del certificato](#creazione-del-certificato)
+      + [Carica la chiave pubblica](#carica-la-chiave-pubblica)
+      + [Prova ad accedere](#prova-ad-accedere)
+      + [Note aggiuntive](#note-aggiuntive)
    * [GitHub](#github)
    * [Utilizzo di più YubiKey](#utilizzo-di-più-yubikey)
    * [Email](#email)
       + [Thunderbird](#thunderbird)
    * [Keyserver](#keyserver)
 - [Aggiornamento delle chaivi](#aggiornamento-delle-chiavi)
-   * [Rinnova le sottochiavi](#rinocca-le-sottochiavi)
+   * [Migliorare l'entropia](#migliorare-l-entropia)
    * [Ruota le sottochaivi](#ruota-le-sottochiavi)
 - [Reset YubiKey](#reset-yubikey)
-- [Optional hardening](#optional-hardening)
-   * [Improving entropy](#improving-entropy)
-   * [Enable KDF](#enable-kdf)
-   * [Network considerations](#network-considerations)
-- [Note](#notes)
-- [Risoluzione dei problemi](#troubleshooting)
-- [Soluzioni alternative](#alternative-solutions)
-- [Risorse aggiuntive](#additional-resources)
+- [Indurimento opzionale](#indurimento-opzionale)
+   * [Migliorare l'entropia](#migliorare-l-entropia)
+   * [Abilità KDF](#abilità-kdf)
+   * [Network](#network)
+- [Note](#note)
+- [Risoluzione dei problemi](#risoluzione-dei-problemi)
+- [Soluzioni alternative](#soluzion-alternative)
+- [Risorse aggiuntive](#risorse-aggiuntive)
 
 # Acquistare Yubikey
 
@@ -878,7 +881,7 @@ ykman openpgp keys set-touch -h
 
 YubiKey lampeggerà quando attende un tocco. Su Linux, [maximbaz/yubikey-touch-detector](https://github.com/maximbaz/yubikey-touch-detector) può essere utilizzato per indicare che YubiKey è in attesa di un tocco. 
 
-# SSH
+## SSH
 
 A partire dal 2020-05-09 [Filippo Valsorda ](https://filippo.io/) ha rilasciato [ybikey-agent](https://github.com/FiloSottile/yubikey-agent). Ora sto consigliando questo metodo rispetto all'utilizzo di PKCS#11, tuttavia se desideri comunque utilizzare l'ssh-agent nativo, continua a leggere. 
 
@@ -906,7 +909,7 @@ Assicurati di salvare la password generata in un luogo sicuro, ad esempio un ges
 
 Anche il PUK dovrebbe essere conservato in un luogo sicuro. Viene utilizzato se il PIN viene inserito in modo errato troppe volte. 
 
-## Creazione certificato
+## Creazione del certificato
 
 Questa guida si basa sulle [istruzioni di Yubico](https://developers.yubico.com/PIV/Guides/SSH_with_PIV_and_PKCS11.html) ma utilizza `ykman` invece del veccio `yubico-piv-tool`. Lo strumento precedente non sembra supportare la generazione di certificati PIV e fornisce [errori fuorvianti](https://github.com/Yubico/yubico-piv-tool/issues/153). 
 
@@ -954,17 +957,72 @@ Esporta la tua chiave pubblica SSH da Yubikey:
 ssh-keygen -D /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
 ```
 
+**Nota** Questo comando esporterà tutte le chiavi memorizzate su YubiKey. L'ordine degli slot dovrebbe rimanere lo stesso, facilitando così l'identificazione della chiave pubblica associata alla chiave privata di destinazione. 
+
 E queste sono tutte le cose difficili da fare. 
 
-Esporta la chiave pubblica nel formato corretto per SSH, quindi aggiungila ad `Authorized_keys` sul sistema di destinazione e prova ad autenticarti:
+
+## Carica la chiave pubblica
+
+Carica la chiave chiave pubblica sulla macchina remota:
 
 ```console
-ssh -I XXX/opensc-pkcs11.so -i XXX/opensc-pkcs11.so -o IdentitiesOnly=yes utente@server.example.com
+ssh-copy-id -i ~/.ssh/mykey user@host
 ```
 
-Dovrebbe essere richiesto per il tuo PIN PIV di Yubikey.
+Se la macchina remota permette di accedere solo tramite chiave `ssh-copy-id` non consente di specificare direttamente una chiave per l'accesso, aggiriamo questo problema usando l'opzione `-o`:
 
-**Nota:** Questo comando esporterà tutte le chiavi memorizzate su YubiKey. L'ordine degli slot dovrebbe rimanere lo stesso, facilitando così l'identificazione della chiave pubblica associata alla chiave privata di destinazione. 
+```console
+ssh-copy-id -i ~/.ssh/chiave-opensc -o 'IdentityFile ~/.ssh/chaive-già-presente' user@hostname
+```
+
+## Prova ad accedere
+
+Autenticarsi sul sistema di destinazione utilizzando la nuova chiave:
+
+```console
+ssh -i /lib/x86_64-linux-gnu/opensc-pkcs11.so user@hostname
+```
+
+Facoltativamente può anche essere configurato per funzionare con ssh-agent:
+
+```console
+ssh-add -s /lib/x86_64-linux-gnu/opensc-pkcs11.so
+```
+
+Conferma che `ssh-agent` trova la chiave corretta e ottiene la chiave pubblica nel formato corretto eseguendo:
+
+```console
+ssh-add -L
+```
+
+Ora non resta che accedere (senza specificare la chiave) usando:
+
+```console
+ssh user@hostname
+```
+
+E' possibile utilizzare la chiave SSH di Yubikey, utilizzando l'opzione PKCS11Provider invece di IdentityFile, per esempio:
+
+```console
+Host foo
+  Hostname <ip o dominio>
+  User <username dell'utente remoto>
+  PKCS11Provider /usr/local/lib/opensc-pkcs11.so
+  IdentitiesOnly yes
+```
+
+## Note aggiuntive
+
+- Durante l'utilizzo di SSH, potrebbe essere richiesto il nome dell'oggetto della chiave, ad esempio `Enter PIN for 'SSH key':`. Ma se aggiungi la chiave all'agente, riceverai un messaggio del tipo `Enter passphrase for PKCS#11:`. Si tratta dello stesso PIN (il tuo PIN PIV).
+
+- Se rimuovi la chiave da ssh-agent utilizzando `ssh-add -d` O `ssh-add -D`, dovrai rimuovere e aggiungere nuovamente la libreria PKCS all'agente oppure riavviare l'agente. Per aggiungere nuovamente la libreria:
+
+  ```console
+  ssh-add -e /usr/local/lib/opensc-pkcs11.so
+  ssh-add -s /usr/local/lib/opensc-pkcs11.so
+  ```
+
 
 ## GitHub
 
@@ -1238,17 +1296,17 @@ Reset code:  NOT SET
 Admin PIN:   12345678
 ```
 
-# Optional hardening
+# Indurimento opzionale
 
 The following steps may improve the security and privacy of YubiKey.
 
-## Improving entropy
+## Migliorare l'entropia
 
-Generating cryptographic keys requires high-quality [randomness](https://www.random.org/randomness/), measured as entropy. Most operating systems use software-based pseudorandom number generators or CPU-based hardware random number generators (HRNG).
+La generazione di chiavi crittografiche richiede una [casualità](https://www.random.org/randomness/) misurata come entropia, di alta qualità. La maggior parte dei sistemi operativi utilizza generatori di numeri pseudocasuali basati su software o generatori di numeri casuali hardware basati su CPU (HRNG). 
 
-Optionally, a device such as [OneRNG](https://onerng.info/onerng/) may be used to [increase the speed](https://lwn.net/Articles/648550/) and possibly the quality of available entropy.
+Facoltativamente, con un dispositivo come [OneRNG](https://onerng.info/onerng/) è possibile [incrementare](https://lwn.net/Articles/648550/) la qualità dell'entropia disponibile.
 
-Before creating keys, configure [rng-tools](https://wiki.archlinux.org/title/Rng-tools):
+Prima di creare la chaive, configura [rng-tools](https://wiki.archlinux.org/title/Rng-tools):
 
 ```console
 sudo apt -y install at rng-tools python3-gnupg openssl
@@ -1256,19 +1314,19 @@ sudo apt -y install at rng-tools python3-gnupg openssl
 wget https://github.com/OneRNG/onerng.github.io/raw/master/sw/onerng_3.7-1_all.deb
 ```
 
-Verify the package:
+Verifica il pacchetto:
 
 ```console
 sha256sum onerng_3.7-1_all.deb
 ```
 
-The value must match:
+Il valore deve corrispondere:
 
 ```console
 b7cda2fe07dce219a95dfeabeb5ee0f662f64ba1474f6b9dddacc3e8734d8f57
 ```
 
-Install the package:
+Installa il pacchetto:
 
 ```console
 sudo dpkg -i onerng_3.7-1_all.deb
@@ -1276,7 +1334,7 @@ sudo dpkg -i onerng_3.7-1_all.deb
 echo "HRNGDEVICE=/dev/ttyACM0" | sudo tee /etc/default/rng-tools
 ```
 
-Insert the device and restart rng-tools:
+Inserisci il dispositivo e riavvia rng-tools:
 
 ```console
 sudo atd
@@ -1284,15 +1342,15 @@ sudo atd
 sudo service rng-tools restart
 ```
 
-## Enable KDF
+## Abilità KDF
 
-**Note** This feature may not be compatible with older GnuPG versions, especially mobile clients. These incompatible clients will not function because the PIN will always be rejected.
+**Nota** Questa funzionalità potrebbe non essere compatibile con le versioni precedenti di GnuPG, in particolare con i client mobili. Questi client incompatibili non funzioneranno perché il PIN verrà sempre rifiutato.
 
-This step must be completed before changing PINs or moving keys or an error will occur: `gpg: error for setup KDF: Conditions of use not satisfied`
+Questo passaggio deve essere completato prima di modificare i PIN o spostare le chiavi altrimenti si verificherà un errore: `gpg: error for setup KDF: Conditions of use not satisfied`
 
-Key Derived Function (KDF) enables YubiKey to store the hash of PIN, preventing the PIN from being passed as plain text.
+La funzione Key Derived (KDF) consente a YubiKey di memorizzare l'hash del PIN, impedendo che il PIN venga passato come testo normale.
 
-Enable KDF using the default Admin PIN of `12345678`:
+Abilita KDF utilizzando il PIN amministratore predefinito `12345678`:
 
 ```console
 gpg --command-fd=0 --pinentry-mode=loopback --card-edit <<EOF
@@ -1302,19 +1360,19 @@ kdf-setup
 EOF
 ```
 
-## Network considerations
+## Network
 
-This section is primarily focused on Debian / Ubuntu based systems, but the same concept applies to any system connected to a network.
+Questa sezione si concentra principalmente sui sistemi basati su Debian/Ubuntu, ma lo stesso concetto si applica a qualsiasi sistema connesso a una rete.
 
-Whether you're using a VM, installing on dedicated hardware, or running a Live OS temporarily, start *without* a network connection and disable any unnecessary services listening on all interfaces before connecting to the network.
+Che tu stia utilizzando una VM, installando su hardware dedicato o eseguendo temporaneamente un sistema operativo Live, avvia senza una connessione di rete e disabilita tutti i servizi non necessari in ascolto su tutte le interfacce prima di connetterti alla rete.
 
-The reasoning for this is because services like cups or avahi can be listening by default. While this isn't an immediate problem it simply broadens the attack surface. Not everyone will have a dedicated subnet or trusted network equipment they can control, and for the purposes of this guide, these steps treat *any* network as untrusted / hostile.
+Il motivo di ciò è perché servizi come cups o avahi possono essere in ascolto per impostazione predefinita. Anche se questo non è un problema immediato, allarga semplicemente la superficie di attacco. Non tutti avranno una sottorete dedicata o apparecchiature di rete affidabili da poter controllare e, ai fini di questa guida, questi passaggi trattano qualsiasi rete come non affidabile/ostile. 
 
-**Disable Listening Services**
+**Disabilita i servizi di ascolto**
 
-- Ensures only essential network services are running
-- If the service doesn't exist you'll get a "Failed to stop" which is fine
-- Only disable `Bluetooth` if you don't need it
+- Garantisce che siano in esecuzione solo i servizi di rete essenziali
+- Se il servizio non esiste riceverai un messaggio "Impossibile arrestare", il che va bene
+- Disabilita il `Bluetooth` se non ne hai bisogno 
 
 ```bash
 sudo systemctl stop bluetooth exim4 cups avahi avahi-daemon sshd
@@ -1322,29 +1380,29 @@ sudo systemctl stop bluetooth exim4 cups avahi avahi-daemon sshd
 
 **Firewall**
 
-Enable a basic firewall policy of *deny inbound, allow outbound*. Note that Debian does not come with a firewall, simply disabling the services in the previous step is fine. The following options have Ubuntu and similar systems in mind.
+Abilita una policy firewall di base che *nega l'ingresso e consente l'uscita*. Tieni presente che Debian non è dotata di firewall, va bene semplicemente disabilitare i servizi nel passaggio precedente. Le seguenti opzioni hanno in mente Ubuntu e sistemi simili.
 
-On Ubuntu, `ufw` is built in and easy to enable:
+Su Ubuntu, `ufw` è integrato ed è facile da abilitare: 
 
 ```bash
 sudo ufw enable
 ```
 
-On systems without `ufw`, `nftables` is replacing `iptables`. The [nftables wiki has examples](https://wiki.nftables.org/wiki-nftables/index.php/Simple_ruleset_for_a_workstation) for a baseline *deny inbound, allow outbound* policy. The `fw.inet.basic` policy covers both IPv4 and IPv6.
+Sui sistemi senza `ufw`, `nftables` sta sostituendo `iptables`. La [ wiki di nftables contiene esempi](https://wiki.nftables.org/wiki-nftables/index.php/Simple_ruleset_for_a_workstation) di criteri di base per negare l'ingresso e consentire l'uscita. Il `fw.inet.basic` la politica copre sia IPv4 che IPv6.
 
-(Remember to download this README and any other resources to another external drive when creating the bootable media, to have this information ready to use offline)
+(Ricordati di scaricare questo README e qualsiasi altra risorsa su un'altra unità esterna durante la creazione del supporto di avvio, per avere queste informazioni pronte per l'uso offline)
 
-Regardless of which policy you use, write the contents to a file (e.g. `nftables.conf`) and apply the policy with the following comand:
+Indipendentemente dalla policy che utilizzi, scrivi il contenuto in un file (es. `nftables.conf`) e applicare la policy con il seguente comando:
 
 ```bash
 sudo nft -f ./nftables.conf
 ```
 
-**Review the System State**
+**Esaminare lo stato del sistema**
 
-`NetworkManager` should be the only listening service on port 68/udp to obtain a DHCP lease (and 58/icmp6 if you have IPv6).
+`NetworkManager` dovrebbe essere l'unico servizio in ascolto sulla porta 68/udp a ottenere un lease DHCP (e 58/icmp6 se si dispone di IPv6).
 
-If you want to look at every process's command line arguments you can use `ps axjf`. This prints a process tree which may have a large number of lines but should be easy to read on a live image or fresh install.
+Se vuoi esaminare gli argomenti della riga di comando di ogni processo puoi usare `ps axjf`. Questo stampa un albero del processo che può avere un gran numero di righe ma dovrebbe essere facile da leggere su un'immagine live o su una nuova installazione. 
 
 ```bash
 sudo ss -anp -A inet    # Dump all network state information
@@ -1352,7 +1410,7 @@ ps axjf                 # List all processes in a process tree
 ps aux                  # BSD syntax, list all processes but no process tree
 ```
 
-If you find any additional processes listening on the network that aren't needed, take note and disable them with one of the following:
+Se trovi processi aggiuntivi in ​​ascolto sulla rete che non sono necessari, prendi nota e disabilitali con uno dei seguenti: 
 
 ```bash
 sudo systemctl stop <process-name>                      # Stops services managed by systemctl
@@ -1361,76 +1419,74 @@ pgrep -f '<process-name-or-command-line-string>'        # Obtain the PID
 sudo kill <pid>                                         # Terminate the process via its PID
 ```
 
-Now connect to a network.
+Ora connettiti a una rete.
 
-# Notes
+# Note
 
-1. YubiKey has two configurations, invoked with either a short or long press. By default, the short-press mode is configured for HID OTP; a brief touch will emit an OTP string starting with `cccccccc`. OTP mode can be swapped to the second configuration via the YubiKey Personalization tool or disabled entirely using [YubiKey Manager](https://developers.yubico.com/yubikey-manager): `ykman config usb -d OTP`
+1. YubiKey ha due configurazioni, richiamate con una pressione breve o lunga. Per impostazione predefinita, la modalità pressione breve è configurata per HID OTP; un breve tocco emetterà una stringa OTP che inizia con `cccccccc`. La modalità OTP può essere cambiata nella seconda configurazione tramite lo strumento di personalizzazione YubiKey o disabilitata completamente utilizzando [YubiKey Manager](https://developers.yubico.com/yubikey-manager): `ykman config usb -d OTP`
 
-1. Using YubiKey for GnuPG does not prevent use of [other features](https://developers.yubico.com/), such as [WebAuthn](https://developers.yubico.com/WebAuthn/) and [OTP](https://developers.yubico.com/OTP/).
+1. L'uso di YubiKey per GnuPG non impedisce l'uso di [altre funzionalità](https://developers.yubico.com/), come [WebAuthn](https://developers.yubico.com/WebAuthn/) e [OTP](https://developers.yubico.com/OTP/).
 
-1. Add additional identities to a Certify key with the `adduid` command during setup, then trust it ultimately with `trust` and `5` to configure for use.
+1. Aggiungi identità aggiuntive a una chiave Certify con il comando `adduid` durante l'installazione, quindi fidati di esso `trust` e infine `5` per completare la configurazione.
 
-1. To switch between YubiKeys, remove the first YubiKey and restart gpg-agent, ssh-agent and pinentry with `pkill "gpg-agent|ssh-agent|pinentry" ; eval $(gpg-agent --daemon --enable-ssh-support)` then insert the other YubiKey and run `gpg-connect-agent updatestartuptty /bye`
+1. Per passare da una YubiKey all'altra, rimuovere la prima YubiKey e riavviare gpg-agent, ssh-agent e pinentry con `pkill "gpg-agent|ssh-agent|pinentry" ; eval $(gpg-agent --daemon --enable-ssh-support)` quindi inserisci l'altra YubiKey ed esegui `gpg-connect-agent updatestartuptty /bye`
 
-1. To use YubiKey on multiple computers, import the corresponding public keys, then confirm YubiKey is visible with `gpg --card-status`. Trust the imported public keys ultimately with `trust` and `5`, then `gpg --list-secret-keys` will show the correct and trusted key.
+1. Per utilizzare YubiKey su più computer, importa le chiavi pubbliche corrispondenti, quindi conferma che YubiKey è visibile con `gpg --card-status`. Alla fine fidati delle chiavi pubbliche importate con `trust` e `5`, poi `gpg --list-secret-keys` mostrerà la chiave corretta e affidabile.
 
-# Troubleshooting
+# Risoluzione dei problemi
 
-- Use `man gpg` to understand GnuPG options and command-line flags.
+- Utilizza `man gpg` per comprendere le opzioni di GnuPG e i flag della riga di comando.
 
-- To get more information on potential errors, restart the `gpg-agent` process with debug output to the console with `pkill gpg-agent; gpg-agent --daemon --no-detach -v -v --debug-level advanced --homedir ~/.gnupg`.
+- Per ottenere maggiori informazioni sui potenziali errori, riavviare il `gpg-agent`  processo con output di debug sulla console con `pkill gpg-agent; gpg-agent --daemon --no-detach -v -v --debug-level advanced --homedir ~/.gnupg`.
 
-- A lot of issues can be fixed by removing and re-inserting YubiKey, or restarting the `gpg-agent` process.
+- Molti problemi possono essere risolti rimuovendo e reinserindo YubiKey o riavviando il processo `gpg-agent`.
 
-- If you receive the error, `Yubikey core error: no yubikey present` - make sure the YubiKey is inserted correctly. It should blink once when plugged in.
+- Se ricevi l'errore, `Yubikey core error: no yubikey present` - assicurati che la YubiKey sia inserita correttamente. Dovrebbe lampeggiare una volta quando è collegato.
 
-- If you still receive the error, `Yubikey core error: no yubikey present` - you likely need to install newer versions of yubikey-personalize as outlined in [Install software](#install-software).
+- Se ricevi ancora l'errore, `Yubikey core error: no yubikey present` - Probabilmente dovrai installare le versioni più recenti di ybikey-personalize come indicato in [Installare il software](#installare-il-software).
 
-- If you see `General key info..: [none]` in card status output - import the public key.
+- Se vedi `General key info..: [none]` nell'output di `gpg card-status`: importa la chiave pubblica.
 
-- If you receive the error, `gpg: decryption failed: secret key not available` - you likely need to install GnuPG version 2.x. Another possibility is that there is a problem with the PIN, e.g., it is too short or blocked.
+- Se ricevi l'errore, `gpg: decryption failed: secret key not available` - probabilmente dovrai installare GnuPG versione 2.x. Un'altra possibilità è che ci sia un problema con il PIN, ad esempio che sia troppo corto o bloccato.
 
-- If you receive the error, `Yubikey core error: write error` - YubiKey is likely locked. Install and run yubikey-personalization-gui to unlock it.
+- Se ricevi l'errore, `Yubikey core error: write error` - Probabilmente la YubiKey è bloccata. Installa ed esegui ybikey-personalization-gui per sbloccarlo.
 
-- If you receive the error, `Key does not match the card's capability` - you likely need to use 2048-bit RSA key sizes.
+- Se ricevi l'errore, `Key does not match the card's capability` - probabilmente dovrai utilizzare dimensioni della chiave RSA a 2048 bit. 
 
-- If you receive the error, `sign_and_send_pubkey: signing failed: agent refused operation` - make sure you replaced `ssh-agent` with `gpg-agent` as noted above.
+- Se ricevi l'errore, `sign_and_send_pubkey: signing failed: agent refused operation` - assicurati di aver sostituito `ssh-agent` con `gpg-agent` come notato sopra. 
 
-- If you still receive the error, `sign_and_send_pubkey: signing failed: agent refused operation` - [run the command](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=835394) `gpg-connect-agent updatestartuptty /bye`
+- Se ricevi ancora l'errore, `sign_and_send_pubkey: signing failed: agent refused operation` - [esegui il comando](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=835394) `gpg-connect-agent updatestartuptty /bye`
 
-- If you still receive the error, `sign_and_send_pubkey: signing failed: agent refused operation` - edit `~/.gnupg/gpg-agent.conf` to set a valid `pinentry` program path. `gpg: decryption failed: No secret key` could also indicate an invalid `pinentry` path
+- Se ricevi ancora l'errore, `sign_and_send_pubkey: signing failed: agent refused operation` - modifica `~/.gnupg/gpg-agent.conf` per impostare un valore valido `pinentry` percorso del programma. `gpg: decryption failed: No secret key` potrebbe anche indicare un sentiero `pinentry` non valido.
 
-- If you still receive the error, `sign_and_send_pubkey: signing failed: agent refused operation` - it is a [known issue](https://bbs.archlinux.org/viewtopic.php?id=274571) that openssh 8.9p1 and higher has issues with YubiKey. Adding `KexAlgorithms -sntrup761x25519-sha512@openssh.com` to `/etc/ssh/ssh_config` often resolves the issue.
+- Se ricevi ancora l'errore, `sign_and_send_pubkey: signing failed: agent refused operation` - è un [problema noto](https://bbs.archlinux.org/viewtopic.php?id=274571) che openssh 8.9p1 e versioni successive presentano problemi con YubiKey. Aggiungere `KexAlgorithms -sntrup761x25519-sha512@openssh.com` a `/etc/ssh/ssh_config` spesso risolve il problema.
 
-- If you receive the error, `The agent has no identities` from `ssh-add -L`, make sure you have installed and started `scdaemon`
+- Se ricevi l'errore, `The agent has no identities` da `ssh-add -L`, assicurati di aver installato e avviato `scdaemon`
 
-- If you receive the error, `Error connecting to agent: No such file or directory` from `ssh-add -L`, the UNIX file socket that the agent uses for communication with other processes may not be set up correctly. On Debian, try `export SSH_AUTH_SOCK="/run/user/$UID/gnupg/S.gpg-agent.ssh"`. Also see that `gpgconf --list-dirs agent-ssh-socket` is returning single path, to existing `S.gpg-agent.ssh` socket.
+- Se ricevi l'errore, `Error connecting to agent: No such file or directory` da `ssh-add -L`, il socket UNIX utilizzato dall'agente per la comunicazione con altri processi potrebbe non essere impostato correttamente. Su Debian, prova `export SSH_AUTH_SOCK="/run/user/$UID/gnupg/S.gpg-agent.ssh"`. Vedi anche `gpgconf --list-dirs agent-ssh-socket` sta restituendo il percorso unico, all'esistente socket `S.gpg-agent.ssh`.
 
-- If you receive the error, `Permission denied (publickey)`, increase ssh verbosity with the `-v` flag and verify the public key from the card is being offered: `Offering public key: RSA SHA256:abcdefg... cardno:00060123456`. If it is, verify the correct user the target system - not the user on the local system. Otherwise, be sure `IdentitiesOnly` is not [enabled](https://github.com/FiloSottile/whosthere#how-do-i-stop-it) for this host.
+- Se ricevi l'errore, `Permission denied (publickey)`, aumenta la verbosità di ssh con il file -v contrassegnare e verificare che venga offerta la chiave pubblica della carta: `Offering public key: RSA SHA256:abcdefg... cardno:00060123456`. In tal caso, verificare l'utente corretto del sistema di destinazione, non l'utente del sistema locale. Altrimenti assicurati che `IdentitiesOnly` non sia [abilitato](https://github.com/FiloSottile/whosthere#how-do-i-stop-it) per questo host.
 
-- If SSH authentication still fails - add up to 3 `-v` flags to the `ssh` command to increase verbosity.
+-Se l'autenticazione SSH continua a fallire, aggiungi fino a 3 `-v` bandiere al comando `ssh` per aumentare la verbosità. 
 
-- If it still fails, it may be useful to stop the background `sshd` daemon process service on the server (e.g. using `sudo systemctl stop sshd`) and instead start it in the foreground with extensive debugging output, using `/usr/sbin/sshd -eddd`. Note that the server will not fork and will only process one connection, therefore has to be re-started after every `ssh` test.
+- Se il problema persiste, potrebbe essere utile interrompere lo sfondo `sshd` servizio di processo daemon sul server (ad esempio usando `sudo systemctl stop sshd`) e avviarlo invece in primo piano con un ampio output di debug, utilizzando `/usr/sbin/sshd -eddd`. Tieni presente che il server non si biforcherà ed elaborerà solo una connessione, pertanto dovrà essere riavviato dopo ciascuna `ssh` test. 
 
-- If you receive the error, `Please insert the card with serial number` see [Using Multiple Keys](#using-multiple-keys).
+- Se ricevi l'errore, `There is no assurance this key belongs to the named user` or `encryption failed: Unusable public key` o `No public key` usa `gpg --edit-key` per impostare `trust` a `5 = I trust ultimately`
 
-- If you receive the error, `There is no assurance this key belongs to the named user` or `encryption failed: Unusable public key` or `No public key` use `gpg --edit-key` to set `trust` to `5 = I trust ultimately`
+- Se, quando provi il comando precedente, ricevi l'errore `Need the secret key to do this` - specificare l'attendibilità per la chiave `~/.gnupg/gpg.conf` utilizzando la diretiva `trust-key [key ID]`.
 
-- If, when you try the above command, you get the error `Need the secret key to do this` - specify trust for the key in `~/.gnupg/gpg.conf` by using the `trust-key [key ID]` directive.
+- Se, quando si utilizza una YubiKey precedentemente fornita su un nuovo computer con `pass`, viene visualizzato il seguente errore su `pass insert`, è necessario modificare l'attendibilità associata alla chiave. Vedi la nota sopra. 
 
-- If, when using a previously provisioned YubiKey on a new computer with `pass`, you see the following error on `pass insert`, you need to adjust the trust associated with the key. See the note above.
-
-```
+```console
 gpg: 0x0000000000000000: There is no assurance this key belongs to the named user
 gpg: [stdin]: encryption failed: Unusable public key
 ```
 
-- If you receive the error, `gpg: 0x0000000000000000: skipped: Unusable public key`, `signing failed: Unusable secret key`, or `encryption failed: Unusable public key` the Subkey may be expired and can no longer be used to encrypt nor sign messages. It can still be used to decrypt and authenticate, however.
+- Se ricevi l'errore, `gpg: 0x0000000000000000: skipped: Unusable public key`, `signing failed: Unusable secret key`, o `encryption failed: Unusable public key` la sottochiave potrebbe essere scaduta e non può più essere utilizzata per crittografare o firmare messaggi. Può comunque essere utilizzato per decrittografare e autenticare. 
 
-- If the _pinentry_ graphical dialog does not show and this error appears: `sign_and_send_pubkey: signing failed: agent refused operation`, install the `dbus-user-session` package and restart for the `dbus` user session to be fully inherited. This is because `pinentry` complains about `No $DBUS_SESSION_BUS_ADDRESS found`, falls back to `curses` but doesn't find the expected `tty`
+- Se la finestra di dialogo grafica della _pinentry_ non viene visualizzata e viene visualizzato questo errore: `sign_and_send_pubkey: signing failed: agent refused operation`, installare il pacchetto `dbus-user-session` e riavviare per il `dbus` sessione utente da ereditare completamente. Questo è perché pinentry si lamenta `No $DBUS_SESSION_BUS_ADDRESS found`, ritorna a `curses` ma non trova quello atteso `tty`.
 
-- If, when you try the above `--card-status` command, you get receive the error, `gpg: selecting card failed: No such device` or `gpg: OpenPGP card not available: No such device`, it's possible that the latest release of pcscd is now requires polkit rules to operate properly. Create the following file to allow users in the `wheel` group to use the card. Be sure to restart pcscd when you're done to allow the new rules to take effect.
+- Se, quando provi quanto sopra `--card-status` comando, riceverai l'errore, `gpg: selecting card failed: No such device` o `gpg: OpenPGP card not available: No such device`, è possibile che l'ultima versione di pcscd richieda ora le regole polkit per funzionare correttamente. Crea il seguente file per consentire agli utenti di accedere al file `wheel` gruppo per utilizzare la carta. Assicurati di riavviare pcscd quando hai finito per consentire alle nuove regole di avere effetto. 
 
 ```console
 cat << EOF >  /etc/polkit-1/rules.d/99-pcscd.rules
@@ -1449,17 +1505,19 @@ polkit.addRule(function(action, subject) {
 EOF
 ```
 
-- If the public key is lost, follow [this guide](https://www.nicksherlock.com/2021/08/recovering-lost-gpg-public-keys-from-your-yubikey/) to recover it from YubiKey.
+- Se la chiave pubblica viene persa, segui [questa guida](https://www.nicksherlock.com/2021/08/recovering-lost-gpg-public-keys-from-your-yubikey/) per recuperarla da YubiKey
 
-- Refer to Yubico article [Troubleshooting Issues with GPG](https://support.yubico.com/hc/en-us/articles/360013714479-Troubleshooting-Issues-with-GPG) for additional guidance.
+- Fare riferimento all'articolo [Yubico Risoluzione dei problemi con GPG](https://support.yubico.com/hc/en-us/articles/360013714479-Troubleshooting-Issues-with-GPG) per ulteriori indicazioni. 
 
-# Alternative solutions
+# Soluzioni alternative
 
-* [`vorburger/ed25519-sk.md`](https://github.com/vorburger/vorburger.ch-Notes/blob/develop/security/ed25519-sk.md) - use YubiKey for SSH without GnuPG
-* [`smlx/piv-agent`](https://github.com/smlx/piv-agent) - SSH and GnuPG agent which can be used with PIV devices
-* [`keytotpm`](https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html) - use GnuPG with TPM systems
+* [`drduh/YubiKey-Guide`](https://github.com/drduh/YubiKey-Guide) - la guida principale utilizzata per redirigere questa guida
+* [`jamesog/yubikey-ssh`](https://github.com/jamesog/yubikey-ssh) - un ottima guida per usare ssh con il modulo PIV della Yubikey
+* [`vorburger/ed25519-sk.md`](https://github.com/vorburger/vorburger.ch-Notes/blob/develop/security/ed25519-sk.md) -  usa YubiKey per SSH senza GnuPG 
+* [`smlx/piv-agent`](https://github.com/smlx/piv-agent) - Agente SSH e GnuPG che può essere utilizzato con dispositivi PIV 
+* [`keytotpm`](https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html) - utilizzare GnuPG con sistemi TPM
 
-# Additional resources
+# Risorse aggiuntive
 
 * [Yubico - PGP](https://developers.yubico.com/PGP/)
 * [Yubico - Yubikey Personalization](https://developers.yubico.com/yubikey-personalization/)
