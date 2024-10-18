@@ -32,25 +32,15 @@ Le chiavi salvate nella Yubikey [non sono esportabili](https://web.archive.org/w
    * [SSH](#ssh)
       + [Prerequisti](#prerequisiti)
       + [Cambio PIN e PUK](#cambio-pin-e-puk)
-      + [Copy public key](#copy-public-key)
-      + [Import SSH keys](#import-ssh-keys)
-      + [SSH agent forwarding](#ssh-agent-forwarding)
-         - [Use ssh-agent](#use-ssh-agent)
-         - [Use S.gpg-agent.ssh](#use-sgpg-agentssh)
-         - [Chained forwarding](#chained-forwarding)
+      + [](#)
    * [GitHub](#github)
-   * [GnuPG agent forwarding](#gnupg-agent-forwarding)
-      + [Legacy distributions](#legacy-distributions)
-      + [Chained GnuPG agent forwarding](#chained-gnupg-agent-forwarding)
-   * [Using multiple YubiKeys](#using-multiple-yubikeys)
+   * [Utilizzo di più YubiKey](#utilizzo-di-più-yubikey)
    * [Email](#email)
       + [Thunderbird](#thunderbird)
-      + [Mailvelope](#mailvelope)
-      + [Mutt](#mutt)
    * [Keyserver](#keyserver)
-- [Aggiornamento delle chaivi](#updating-keys)
-   * [Rinnova le sottochiavi](#renew-subkeys)
-   * [Ruota le sottochaivi](#rotate-subkeys)
+- [Aggiornamento delle chaivi](#aggiornamento-delle-chiavi)
+   * [Rinnova le sottochiavi](#rinocca-le-sottochiavi)
+   * [Ruota le sottochaivi](#ruota-le-sottochiavi)
 - [Reset YubiKey](#reset-yubikey)
 - [Optional hardening](#optional-hardening)
    * [Improving entropy](#improving-entropy)
@@ -978,120 +968,33 @@ Dovrebbe essere richiesto per il tuo PIN PIV di Yubikey.
 
 ## GitHub
 
-YubiKey can be used to sign commits and tags, and authenticate SSH to GitHub when configured in [Settings](https://github.com/settings/keys).
+YubiKey può essere utilizzato per firmare commit e tag e autenticare SSH su GitHub quando configurato nelle [Impostazioni](https://github.com/settings/keys).
 
-Configure a signing key:
+Configura una chiave di firma:
 
 ```console
 git config --global user.signingkey $KEYID
 ```
 
-**Important** The `user.email` option must match the email address associated with the PGP identity.
+**Importante** `user.email` deve corrispondere all'indirizzo email associato all'identità PGP.
 
-To sign commits or tags, use the `-S` option.
+Per firmare commit o tag utilizzare l'opzione `-S`.
 
-**Windows**
+**Nota** Per l'errore `gpg: signing failed: No secret key` - esegui `gpg --card-status` con YubiKey collegato e riprova il comando git.
 
-Configure authentication:
+## Utilizzo di più yubikey
 
-```console
-git config --global core.sshcommand "plink -agent"
+Quando una chiave GnuPG viene aggiunta a YubiKey utilizzando `keytocard`, la chiave viene eliminata dal portachiavi e viene aggiunto uno **stub** che punta alla YubiKey. Lo stub identifica l'ID della chiave GnuPG e il numero di serie YubiKey.
 
-git config --global gpg.program 'C:\Program Files (x86)\GnuPG\bin\gpg.exe'
-```
+Quando una sottochiave viene aggiunta a un'ulteriore YubiKey, lo stub viene sovrascritto e ora punterà all'ultima YubiKey. GnuPG richiederà una YubiKey specifica in base al numero di serie, come indicato nello stub, e non riconoscerà un'altra YubiKey con un numero di serie diverso.
 
-Then update the repository URL to `git@github.com:USERNAME/repository`
-
-**Note** For the error `gpg: signing failed: No secret key` - run `gpg --card-status` with YubiKey plugged in and try the git command again.
-
-## GnuPG agent forwarding
-
-YubiKey can be used sign git commits and decrypt files on remote hosts with GnuPG Agent Forwarding. To ssh through another network, especially to push to/pull from GitHub using ssh, see [Remote Machines (SSH Agent forwarding)](#ssh-agent-forwarding).
-
-`gpg-agent.conf` is not needed on the remote host; after forwarding, remote GnuPG directly communicates with `S.gpg-agent` without starting `gpg-agent` on the remote host.
-
-On the remote host, edit `/etc/ssh/sshd_config` to set `StreamLocalBindUnlink yes`
-
-**Optional** Without root access on the remote host to edit `/etc/ssh/sshd_config`, socket located at `gpgconf --list-dir agent-socket` on the remote host will need to be removed before forwarding works. See [AgentForwarding GNUPG wiki page](https://wiki.gnupg.org/AgentForwarding) for more information.
-
-Import the public key on the remote host. On the local host, copy the public keyring to the remote host:
-
-```console
-scp ~/.gnupg/pubring.kbx remote:~/.gnupg/
-```
-
-On modern distributions, such as Fedora 30, there is no need to set `RemoteForward` in `~/.ssh/config`
-
-### Legacy distributions
-
-On the local host, run:
-
-```console
-gpgconf --list-dirs agent-extra-socket
-```
-
-This should return a path to agent-extra-socket - `/run/user/1000/gnupg/S.gpg-agent.extra` - though on older Linux distros (and macOS) it may be `/home/<user>/.gnupg/S/gpg-agent.extra`
-
-Find the agent socket on the **remote** host:
-
-```console
-gpgconf --list-dirs agent-socket
-```
-
-This should return a path such as `/run/user/1000/gnupg/S.gpg-agent`
-
-Finally, enable agent forwarding for a given host by adding the following to the local host's `~/.ssh/config` (agent sockets may differ):
-
-```
-Host
-  Hostname remote-host.tld
-  StreamLocalBindUnlink yes
-  RemoteForward /run/user/1000/gnupg/S.gpg-agent /run/user/1000/gnupg/S.gpg-agent.extra
-  #RemoteForward [remote socket] [local socket]
-```
-
-It may be necessary to edit `gpg-agent.conf` on the *local* host to add the following information:
-
-```
-pinentry-program /usr/bin/pinentry-gtk-2
-extra-socket /run/user/1000/gnupg/S.gpg-agent.extra
-```
-
-**Note** The pinentry program starts on the *local* host, not remote.
-
-**Important** Any pinentry program except `pinentry-tty` or `pinentry-curses` may be used. This is because local `gpg-agent` may start headlessly (by systemd without `$GPG_TTY` set locally telling which tty it is on), thus failed to obtain the pin. Errors on the remote may be misleading saying that there is *IO Error*. (Yes, internally there is actually an *IO Error* since it happens when writing to/reading from tty while finding no tty to use, but for end users this is not friendly.)
-
-See [Issue 85](https://github.com/drduh/YubiKey-Guide/issues/85) for more information and troubleshooting.
-
-### Chained GnuPG agent forwarding
-
-Assume you have gone through the steps above and have `S.gpg-agent` on the *remote*, and you would like to forward this agent into a *third* box, first you may need to configure `sshd_config` of *third* in the same way as *remote*, then in the ssh config of *remote*, add the following lines:
-
-```console
-Host third
-  Hostname third-host.tld
-  StreamLocalBindUnlink yes
-  RemoteForward /run/user/1000/gnupg/S.gpg-agent /run/user/1000/gnupg/S.gpg-agent
-  #RemoteForward [remote socket] [local socket]
-```
-
-You should change the path according to `gpgconf --list-dirs agent-socket` on *remote* and *third*.
-
-**Note** On *local* you have `S.gpg-agent.extra` whereas on *remote* and *third*, you only have `S.gpg-agent`
-
-## Using multiple YubiKeys
-
-When a GnuPG key is added to YubiKey using `keytocard`, the key is deleted from the keyring and a **stub** is added, pointing to the YubiKey. The stub identifies the GnuPG key ID and YubiKey serial number.
-
-When a Subkey is added to an additional YubiKey, the stub is overwritten and will now point to the latest YubiKey. GnuPG will request a specific YubiKey by serial number, as referenced by the stub, and will not recognize another YubiKey with a different serial number.
-
-To scan an additional YubiKey and recreate the correct stub:
+Per scansionare una YubiKey aggiuntiva e ricreare lo stub corretto: 
 
 ```console
 gpg-connect-agent "scd serialno" "learn --force" /bye
 ```
 
-Alternatively, use a script to delete the GnuPG shadowed key, where the card serial number is stored (see [GnuPG #T2291](https://dev.gnupg.org/T2291)):
+In alternativa, utilizzare uno script per eliminare la chiave nascosta GnuPG, dove è memorizzato il numero di serie della carta (vedi [GnuPG #T2291](https://dev.gnupg.org/T2291)):
 
 ```console
 cat >> ~/scripts/remove-keygrips.sh <<EOF
@@ -1111,67 +1014,21 @@ chmod +x ~/scripts/remove-keygrips.sh
 ~/scripts/remove-keygrips.sh $KEYID
 ```
 
-See discussion in Issues [#19](https://github.com/drduh/YubiKey-Guide/issues/19) and [#112](https://github.com/drduh/YubiKey-Guide/issues/112) for more information and troubleshooting steps.
+Consulta la discussione nei numeri [#19](https://github.com/drduh/YubiKey-Guide/issues/19) e [#112](https://github.com/drduh/YubiKey-Guide/issues/112) per ulteriori informazioni e passaggi per la risoluzione dei problemi. 
 
 ## Email
 
-YubiKey can be used to decrypt and sign emails and attachments using [Thunderbird](https://www.thunderbird.net/), [Enigmail](https://www.enigmail.net) and [Mutt](http://www.mutt.org/). Thunderbird supports OAuth 2 authentication and can be used with Gmail. See [this EFF guide](https://ssd.eff.org/en/module/how-use-pgp-linux) for more information. Mutt has OAuth 2 support since version 2.0.
+YubiKey può essere utilizzato per decrittografare e firmare e-mail e allegati utilizzando  [Thunderbird](https://www.thunderbird.net/), [Enigmail](https://www.enigmail.net) e [Mutt](http://www.mutt.org/). Thunderbird supporta l'autenticazione OAuth 2 e può essere utilizzato con Gmail. Consulta [this EFF guide](https://ssd.eff.org/en/module/how-use-pgp-linux) per ulteriori informazioni. Mutt ha il supporto OAuth 2 dalla versione 2.0.
 
 ### Thunderbird
 
-Follow [instructions on the mozilla wiki](https://wiki.mozilla.org/Thunderbird:OpenPGP:Smartcards#Configure_an_email_account_to_use_an_external_GnuPG_key) to setup your YubiKey with your thunderbird client using the external gpg provider.
+Segui le [instruzioni sulla wiki di Mozilla](https://wiki.mozilla.org/Thunderbird:OpenPGP:Smartcards#Configure_an_email_account_to_use_an_external_GnuPG_key) per configurare YubiKey con il tuo client Thunderbird utilizzando il provider gpg esterno.
 
-**Important** Thunderbird [fails](https://github.com/drduh/YubiKey-Guide/issues/448) to decrypt emails if the ASCII `armor` option is enabled in your `~/.gnupg/gpg.conf`. If you see the error `gpg: [don't know]: invalid packet (ctb=2d)` or `message cannot be decrypted (there are unknown problems with this encrypted message)` simply remove this option from your config file.
-
-### Mailvelope
-
-[Mailvelope](https://www.mailvelope.com/en) allows YubiKey to be used with Gmail and others.
-
-**Important** Mailvelope [does not work](https://github.com/drduh/YubiKey-Guide/issues/178) with the `throw-keyids` option set in `gpg.conf`
-
-On macOS, install gpgme using Homebrew:
-
-```console
-brew install gpgme
-```
-
-To allow Chrome to run gpgme, edit `~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/gpgmejson.json` to add:
-
-```json
-{
-    "name": "gpgmejson",
-    "description": "Integration with GnuPG",
-    "path": "/usr/local/bin/gpgme-json",
-    "type": "stdio",
-    "allowed_origins": [
-        "chrome-extension://kajibbejlbohfaggdiogboambcijhkke/"
-    ]
-}
-```
-
-Edit the default path to allow Chrome to find GnuPG:
-
-```console
-sudo launchctl config user path /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-```
-
-Finally, install the [Mailvelope extension](https://chromewebstore.google.com/detail/mailvelope/kajibbejlbohfaggdiogboambcijhkke) from the Chrome web store.
-
-### Mutt
-
-Mutt has both CLI and TUI interfaces - the latter provides powerful functions for processing email. In addition, PGP can be integrated such that cryptographic operations can be done without leaving TUI.
-
-To enable GnuPG support, copy `/usr/share/doc/mutt/samples/gpg.rc`
-
-Edit the file to enable options `pgp_default_key`, `pgp_sign_as` and `pgp_autosign`
-
-`source` the file in `muttrc`
-
-**Important** `pinentry-tty` set as the pinentry program in `gpg-agent.conf` is reported to cause problems with Mutt TUI, because it uses curses. It is recommended to use `pinentry-curses` or other graphic pinentry program instead.
+**Important** Thunderbird [non riesce](https://github.com/drduh/YubiKey-Guide/issues/448) a decrittografare le email se l'opzione `armor` è abilitata nel tuo `~/.gnupg/gpg.conf`. Se vedi l'errore `gpg: [don't know]: invalid packet (ctb=2d)` o `message cannot be decrypted (there are unknown problems with this encrypted message)` rimuovi semplicemente questa opzione dal tuo file di configurazione.
 
 ## Keyserver
 
-Public keys can be uploaded to a public server for discoverability:
+Le chiavi pubbliche possono essere caricate su un server pubblico per essere rilevabili:
 
 ```console
 gpg --send-key $KEYID
@@ -1181,19 +1038,19 @@ gpg --keyserver keys.gnupg.net --send-key $KEYID
 gpg --keyserver hkps://keyserver.ubuntu.com:443 --send-key $KEYID
 ```
 
-Or if [uploading to keys.openpgp.org](https://keys.openpgp.org/about/usage):
+Oppure se [si caricano su keys.openpgp.org](https://keys.openpgp.org/about/usage):
 
 ```console
 gpg --send-key $KEYID | curl -T - https://keys.openpgp.org
 ```
 
-The public key URL can also be added to YubiKey (based on [Shaw 2003](https://datatracker.ietf.org/doc/html/draft-shaw-openpgp-hkp-00)):
+L'URL della chiave pubblica può anche essere aggiunto a YubiKey (basato su [Shaw 2003](https://datatracker.ietf.org/doc/html/draft-shaw-openpgp-hkp-00)):
 
 ```console
 URL="hkps://keyserver.ubuntu.com:443/pks/lookup?op=get&search=${KEYID}"
 ```
 
-Edit YubiKey with `gpg --edit-card` and the Admin PIN:
+Modifica YubiKey con `gpg --edit-card` e il PIN amministratore:
 
 ```console
 gpg/card> admin
@@ -1204,23 +1061,23 @@ URL to retrieve public key: hkps://keyserver.ubuntu.com:443/pks/lookup?op=get&se
 gpg/card> quit
 ```
 
-# Updating keys
+# Aggiorna le chiavi
 
-PGP does not provide [forward secrecy](https://en.wikipedia.org/wiki/Forward_secrecy), meaning a compromised key may be used to decrypt all past messages. Although keys stored on YubiKey are more difficult to exploit, it is not impossible: the key and PIN could be physically compromised, or a vulnerability may be discovered in firmware or in the random number generator used to create keys, for example. Therefore, it is recommended practice to rotate Subkeys periodically.
+PGP non fornisce [forward secrecy (segretezza in avanti)](https://en.wikipedia.org/wiki/Forward_secrecy), il che significa che una chiave compromessa può essere utilizzata per decrittografare tutti i messaggi passati. Anche se le chiavi memorizzate su YubiKey sono più difficili da sfruttare, non è impossibile: la chiave e il PIN potrebbero essere fisicamente compromessi, oppure potrebbe essere scoperta una vulnerabilità nel firmware o nel generatore di numeri casuali utilizzato per creare le chiavi, ad esempio. Pertanto, si consiglia di ruotare periodicamente le sottochiavi.
 
-When a Subkey expires, it can either be renewed or replaced. Both actions require access to the Certify key.
+Quando una sottochiave scade, può essere rinnovata o sostituita. Entrambe le azioni richiedono l'accesso alla chiave Certify. 
 
-- Renewing Subkeys by updating expiration indicates continued possession of the Certify key and is more convenient.
+- Il rinnovo delle sottochiavi aggiornando la scadenza indica il possesso continuato della chiave Certify ed è più conveniente. 
 
-- Replacing Subkeys is less convenient but potentially more secure: the new Subkeys will **not** be able to decrypt previous messages, authenticate with SSH, etc. Contacts will need to receive the updated public key and any encrypted secrets need to be decrypted and re-encrypted to new Subkeys to be usable. This process is functionally equivalent to losing the YubiKey and provisioning a new one.
+- Sostituire le sottochiavi è meno conveniente ma potenzialmente più sicuro: le nuove sottochiavi **non** saranno in grado di decrittografare i messaggi precedenti, autenticarsi con SSH, ecc. I contatti dovranno ricevere la chiave pubblica aggiornata e tutti i segreti crittografati dovranno essere decrittografati e ricodificati nuove sottochiavi per essere utilizzabili. Questo processo è funzionalmente equivalente alla perdita di YubiKey e al provisioning di una nuova. 
 
-Neither rotation method is superior and it is up to personal philosophy on identity management and individual threat modeling to decide which one to use, or whether to expire Subkeys at all. Ideally, Subkeys would be ephemeral: used only once for each unique encryption, signature and authentication event, however in practice that is not really practical nor worthwhile with YubiKey. Advanced users may dedicate an air-gapped machine for frequent credential rotation.
+Nessuno dei due metodi di rotazione è superiore e spetta alla filosofia personale sulla gestione delle identità e sulla modellazione delle minacce individuali decidere quale utilizzare o se far scadere le sottochiavi. Idealmente, le sottochiavi sarebbero effimere: utilizzate solo una volta per ogni evento univoco di crittografia, firma e autenticazione, tuttavia in pratica ciò non è realmente pratico né utile con YubiKey. Gli utenti avanzati possono dedicare una macchina con air gap per la rotazione frequente delle credenziali. 
 
-To renew or rotate Subkeys, follow the same process as generating keys: boot to a secure environment, install required software and disable networking.
+Per rinnovare o ruotare le sottochiavi, seguire lo stesso processo della generazione delle chiavi: avviare in un ambiente sicuro, installare il software richiesto e disabilitare la rete.
 
-Connect the portable storage device with the Certify key and identify the disk label.
+Collegare il dispositivo di archiviazione portatile con la chiave Certify e identificare l'etichetta del disco.
 
-Decrypt and mount the encrypted volume:
+Decrittografa e monta il volume crittografato:
 
 ```console
 sudo cryptsetup luksOpen /dev/sdc1 gnupg-secrets
@@ -1230,7 +1087,7 @@ sudo mkdir /mnt/encrypted-storage
 sudo mount /dev/mapper/gnupg-secrets /mnt/encrypted-storage
 ```
 
-Mount the non-encrypted public partition:
+Montare la partizione pubblica non crittografata:
 
 ```console
 sudo mkdir /mnt/public
@@ -1238,7 +1095,7 @@ sudo mkdir /mnt/public
 sudo mount /dev/sdc2 /mnt/public
 ```
 
-Copy the original private key materials to a temporary working directory:
+Copia i materiali della chiave privata originale in una directory di lavoro temporanea:
 
 ```console
 export GNUPGHOME=$(mktemp -d -t gnupg-$(date +%Y-%m-%d)-XXXXXXXXXX)
@@ -1248,7 +1105,7 @@ cd $GNUPGHOME
 cp -avi /mnt/encrypted-storage/gnupg-*/* $GNUPGHOME
 ```
 
-Confirm the identity is available, set the key id and fingerprint:
+Conferma che l'identità è disponibile, imposta l'ID della chiave e l'impronta digitale:
 
 ```console
 gpg -K
@@ -1260,15 +1117,15 @@ export KEYFP=$(gpg -k --with-colons "$IDENTITY" | awk -F: '/^fpr:/ { print $10; 
 echo $KEYID $KEYFP
 ```
 
-Recall the Certify key passphrase and set it, for example:
+Richiamare la passphrase della chiave Certify e impostarla, ad esempio:
 
 ```console
 export CERTIFY_PASS=ABCD-0123-IJKL-4567-QRST-UVWX
 ```
 
-## Renew Subkeys
+## Rinnova le sottochiavi
 
-Determine the updated expiration, for example:
+Determinare la scadenza aggiornata, ad esempio:
 
 ```console
 export EXPIRATION=2026-09-01
@@ -1276,7 +1133,7 @@ export EXPIRATION=2026-09-01
 export EXPIRATION=2y
 ```
 
-Renew the Subkeys:
+Rinnova le sottochiavi:
 
 ```console
 gpg --batch --pinentry-mode=loopback \
@@ -1284,19 +1141,19 @@ gpg --batch --pinentry-mode=loopback \
   $(gpg -K --with-colons | awk -F: '/^fpr:/ { print $10 }' | tail -n "+2" | tr "\n" " ")
 ```
 
-Export the updated public key:
+Esporta la chiave pubblica aggiornata:
 
 ```console
 gpg --armor --export $KEYID | sudo tee /mnt/public/$KEYID-$(date +%F).asc
 ```
 
-Transfer the public key to the destination host and import it:
+Trasferisci la chiave pubblica all'host di destinazione e importala:
 
 ```console
 gpg --import /mnt/public/*.asc
 ```
 
-Alternatively, publish to a public key server and download it:
+In alternativa, pubblica su un server a chiave pubblica e scaricalo:
 
 ```console
 gpg --send-key $KEYID
@@ -1304,25 +1161,25 @@ gpg --send-key $KEYID
 gpg --recv $KEYID
 ```
 
-The validity of the GnuPG identity will be extended, allowing it to be used again for encryption and signature operations.
+La validità dell'identità GnuPG verrà estesa, consentendone il riutilizzo per operazioni di crittografia e firma.
 
-The SSH public key does **not** need to be updated on remote hosts.
+Non è necessario aggiornare la chiave pubblica SSH sugli host remoti.
 
-## Rotate Subkeys
+## Ruota le sottochiavi
 
-Follow the original procedure to [Create Subkeys](#create-subkeys).
+Seguire la procedura originale per [Creare sottochiavi](#creare-sottochiavi).
 
-Previous Subkeys can be deleted from the identity.
+Le sottochiavi precedenti possono essere eliminate dall'identità.
 
-Finish by transfering new Subkeys to YubiKey.
+Termina trasferendo le nuove sottochiavi su YubiKey.
 
-Copy the **new** temporary working directory to encrypted storage, which is still mounted:
+Copia la **nuova** directory di lavoro temporanea nell'archivio crittografato, che è ancora montato:
 
 ```console
 sudo cp -avi $GNUPGHOME /mnt/encrypted-storage
 ```
 
-Unmount and close the encrypted volume:
+Esporta la chiave pubblica aggiornata:
 
 ```console
 sudo umount /mnt/encrypted-storage
@@ -1330,7 +1187,7 @@ sudo umount /mnt/encrypted-storage
 sudo cryptsetup luksClose gnupg-secrets
 ```
 
-Export the updated public key:
+Esporta la chiave pubblica aggiornata:
 
 ```console
 sudo mkdir /mnt/public
@@ -1342,15 +1199,15 @@ gpg --armor --export $KEYID | sudo tee /mnt/public/$KEYID-$(date +%F).asc
 sudo umount /mnt/public
 ```
 
-Remove the storage device and follow the original steps to transfer new Subkeys (`4`, `5` and `6`) to YubiKey, replacing existing ones.
+Rimuovere il dispositivo di archiviazione e seguire i passaggi originali per trasferire le nuove sottochiavi (`4`, `5` e `6`) a YubiKey, sostituendo quelli esistenti.
 
-Reboot or securely erase the GnuPG temporary working directory.
+Riavvia o cancella in modo sicuro la directory di lavoro temporanea di GnuPG. 
 
 # Reset YubiKey
 
-If PIN attempts are exceeded, the YubiKey is locked and must be [Reset](https://developers.yubico.com/ykneo-openpgp/ResetApplet.html) and set up again using the encrypted backup.
+Se i tentativi del PIN vengono superati, la YubiKey viene bloccata e deve essere [riprstinata](https://developers.yubico.com/ykneo-openpgp/ResetApplet.html) e configurata nuovamente utilizzando il backup crittografato.
 
-Copy the following to a file and run `gpg-connect-agent -r $file` to lock and terminate the card. Then re-insert YubiKey to complete reset.
+Copia quanto segue in un file ed esegui `gpg-connect-agent -r $file` per bloccare e terminare la carta. Quindi reinserisci YubiKey per completare il ripristino. 
 
 ```console
 /hex
@@ -1369,7 +1226,7 @@ scd apdu 00 44 00 00
 /bye
 ```
 
-Or use `ykman` (sometimes in `~/.local/bin/`):
+Oppure utilizzare `ykman` (a volte dentro `~/.local/bin/`):
 
 ```console
 $ ykman openpgp reset
