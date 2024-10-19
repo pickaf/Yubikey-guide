@@ -12,11 +12,11 @@ Le chiavi salvate nella Yubikey [non sono esportabili](https://web.archive.org/w
    * [Scadenza](#scadenza)
    * [Passphrase](#passphrase)
 - [Creare una chiave di certificazione](#creare-una-chiave-di-certificazione)
-- [Creare sottochiavi](#creare-sottochiavi)
+- [Creare le sottochiavi](#creare-le-sottochiavi)
 - [Verificare le chiavi](#verificare-le-chiavi)
 - [Backup delle chavi](#backup-delle-chiavi)
 - [Esporta la chiave pubblica](#esporta-la-chiave-pubblica)
-- [Configura YubiKey](#configura-yubikey)
+- [Configura la YubiKey](#configura-la-yubikey)
    * [Cambia PIN](#cambia-pin)
    * [Set attributes](#set-attributes)
 - [Trasferire le sottochiavi](#transferire-le-sottochiavi)
@@ -56,9 +56,9 @@ Le chiavi salvate nella Yubikey [non sono esportabili](https://web.archive.org/w
 
 # Acquistare Yubikey
 
-[Le attuli Yubikey](https://www.yubico.com/store/compare/) ad eccezione della serie di chiavi di sicurezza solo FIDO e delle YubiKey della serie Bio, sono compatibili con questa guida.
+Le attuali [Yubikey](https://www.yubico.com/store/compare/) ad eccezione della serie di chiavi di sicurezza solo FIDO e delle YubiKey della serie Bio, sono compatibili con questa guida.
 
-[Verifica Yubikey](https://support.yubico.com/hc/en-us/articles/360013723419-How-to-Confirm-Your-Yubico-Device-is-Genuine) visitando [yubico.com/genuine](https://www.yubico.com/genuine/). Seleziona *Verify Device* per iniziare il processo. Tocca YubiKey quando richiesto e consenti al sito di vedere la marca e il modello del dispositivo quando richiesto. Questa attestazione del dispositivo può aiutare a mitigare [supply chain attacks](https://media.defcon.org/DEF%20CON%2025/DEF%20CON%2025%20presentations/DEF%20CON%2025%20-%20r00killah-and-securelyfitz-Secure-Tokin-and-Doobiekeys.pdf).
+[Verifica la Yubikey](https://support.yubico.com/hc/en-us/articles/360013723419-How-to-Confirm-Your-Yubico-Device-is-Genuine) visitando [yubico.com/genuine](https://www.yubico.com/genuine/). Seleziona *Verify Device* per iniziare il processo. Tocca YubiKey quando richiesto e consenti al sito di vedere la marca e il modello del dispositivo quando richiesto. Questa attestazione del dispositivo può aiutare a mitigare un [supply chain attacks](https://media.defcon.org/DEF%20CON%2025/DEF%20CON%2025%20presentations/DEF%20CON%2025%20-%20r00killah-and-securelyfitz-Secure-Tokin-and-Doobiekeys.pdf).
 
 Si consigliano inoltre diversi dispositivi di archiviazione portatili (come le schede microSD) per l'archiviazione di backup crittografati.
 
@@ -68,7 +68,7 @@ Si consiglia un ambiente operativo dedicato e sicuro per generare chiavi crittog
 
 In questa guida useremo Debian Live perchè bilancia usabilità e sicurezza.
 
-Scarica i file d' immagine e firma più recenti: 
+Scarica i file d' immagine e di firma più recenti: 
 
 ```console
 curl -fLO "https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/SHA512SUMS"
@@ -89,7 +89,7 @@ Se non è possibile ricevere la chiave pubblica, utilizzare un server di chiavi 
 gpg --keyserver hkps://keyserver.ubuntu.com:443 --recv DF9B9C49EAA9298432589D76DA87E80D6294BE9B
 ```
 
-Verifica la fir:
+Verifica la firma:
 
 ```console
 gpg --verify SHA512SUMS.sign SHA512SUMS
@@ -121,13 +121,13 @@ Spegnere, rimuovere i dischi rigidi interni e tutti i dispositivi non necessari,
 
 # Installare il software
 
-Caricare il sistema operativo e configurare la rete.
+Caricare il sistema operativo e configurare la rete. 
 
-**Note** Se lo schermo si blocca su Debian Live, sbloccalo usando `user` / `live`
+**Importante:** Prima di collegare alla rete la macchina è auspicabile che tu legga la sezione [network](#network).
+
+**Note:** Se lo schermo si blocca puoi sbloccarlo usando `user` come username e `live` come password.
 
 Apri il terminale e installa i pacchetti software richiesti.
-
-**Debian/Ubuntu**
 
 ```console
 sudo apt update
@@ -140,22 +140,7 @@ sudo apt -y install \
   yubikey-personalization yubikey-manager
 ```
 
-**Note**  Per l'utilizzo potrebbe essere necessario installare una dipendenza aggiuntiva del pacchetto python [`ykman`](https://support.yubico.com/support/solutions/articles/15000012643-yubikey-manager-cli-ykman-user-guide) - `pip install yubikey-manager`
-
-**Fedora**
-
-```console
-sudo dnf install wget
-
-wget https://github.com/rpmsphere/noarch/raw/master/r/rpmsphere-release-38-1.noarch.rpm
-
-sudo rpm -Uvh rpmsphere-release*rpm
-
-sudo dnf install \
-  gnupg2 dirmngr cryptsetup gnupg2-smime \
-  pcsc-tools opensc pcsc-lite secure-delete \
-  pgp-tools yubikey-personalization-gui
-```
+**Note:**  Per l'utilizzo potrebbe essere necessario installare una dipendenza aggiuntiva del pacchetto python [`ykman`](https://support.yubico.com/support/solutions/articles/15000012643-yubikey-manager-cli-ykman-user-guide) - `pip install yubikey-manager`
 
 # Preparare GnuPG
 
@@ -167,7 +152,7 @@ export GNUPGHOME=$(mktemp -d -t gnupg-$(date +%Y-%m-%d)-XXXXXXXXXX)
 
 ## Configurazione
 
-Importa orcrea una [configurazione rafforzata](https://github.com/drduh/config/blob/master/gpg.conf):
+Importa o crea una [configurazione rafforzata](https://github.com/drduh/config/blob/master/gpg.conf):
 
 ```console
 cd $GNUPGHOME
@@ -175,7 +160,7 @@ cd $GNUPGHOME
 wget https://raw.githubusercontent.com/drduh/config/master/gpg.conf
 ```
 
-**Note** La rete può essere disabilitata per il resto della configurazione.
+La rete può essere disabilitata per il resto della configurazione.
 
 ## Identita
 
@@ -213,7 +198,7 @@ Questa guida consiglia una scadenza di due anni per le sottochiavi per bilanciar
 
 Quando le sottochiavi scadono, possono ancora essere utilizzate per decrittografare con GnuPG e autenticarsi con SSH, tuttavia non possono essere utilizzate per crittografare o firmare nuovi messaggi. 
 
-Le sottochiavi devono essere rinnovate o ruotate utilizzando la chiave Certifica: vedere Aggiornamento delle chiavi.
+Le sottochiavi devono essere rinnovate o ruotate utilizzando la chiave di certificazione.
 
 Imposta la data di scadenza su due anni:
 
@@ -241,7 +226,7 @@ export CERTIFY_PASS=$(LC_ALL=C tr -dc 'A-Z1-9' < /dev/urandom | \
 
 Scrivi la passphrase in un luogo sicuro, possibilmente separato dal dispositivo di archiviazione portatile utilizzato per il materiale della chiave, oppure memorizzala. 
 
-Questo repository include il modello [`passphrase.html`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.html) per facilitare la trascrizione delle credenziali. Salva il file raw, aprilo con un browser e stampa. Utilizzare una penna o un pennarello indelebile per selezionare una lettera o un numero su ciascuna riga per ciascun carattere della passphrase. [`passphrase.csv`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.csv) può essere stampato anche senza browser:
+Questo repository include il modello [`passphrase.html`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.html) per facilitare la trascrizione delle credenziali. Salva il file raw, aprilo con un browser e stampalo. Utilizzare una penna o un pennarello indelebile per selezionare una lettera o un numero su ciascuna riga per ciascun carattere della passphrase. [`passphrase.csv`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.csv) può essere stampato anche senza browser:
 
 ```console
 lp -d Printer-Name passphrase.csv
@@ -272,7 +257,7 @@ export KEYFP=$(gpg -k --with-colons "$IDENTITY" | awk -F: '/^fpr:/ { print $10; 
 printf "\nKey ID: %40s\nKey FP: %40s\n\n" "$KEYID" "$KEYFP"
 ```
 
-# Creare sottochiavi
+# Creare le sottochiavi
 
 Utilizzare il comando seguente per generare sottochiavi di firma, crittografia e autenticazione utilizzando il tipo di chiave, la passphrase e la scadenza precedentemente configurati: 
 
@@ -338,7 +323,7 @@ $ sudo fdisk -l /dev/sdc
 Disk /dev/sdc: 14.9 GiB, 15931539456 bytes, 31116288 sectors
 ```
 
-**Attezione** Confermare la destinazione ( `of `) prima di emettere il comando seguente - è distruttivo! Questa guida utilizza `/dev/sdc` in tutto, ma questo valore potrebbe essere diverso sul tuo sistema. 
+**Attezione** Confermare la destinazione ( `of`) prima di emettere il comando seguente - è distruttivo! Questa guida utilizza `/dev/sdc` in tutto, ma questo valore potrebbe essere diverso sul tuo sistema. 
 
 Azzerare l'intestazione per prepararsi alla crittografia: 
 
@@ -372,7 +357,7 @@ EOF
 
 Usa [LUKS](https://dys2p.com/en/2023-05-luks-security.html) per crittografare la nuova partizione.
 
-Genera un'altra [Passphrase](#passphrase) (ideally different from the one used for the Certify key) univoca per proteggere il volume crittografato:
+Genera un'altra [Passphrase](#passphrase) (idealmente differente da quella usata pel la chiave di certificazione) univoca per proteggere il volume crittografato:
 
 ```console
 export LUKS_PASS=$(LC_ALL=C tr -dc 'A-Z1-9' < /dev/urandom | \
@@ -380,7 +365,7 @@ export LUKS_PASS=$(LC_ALL=C tr -dc 'A-Z1-9' < /dev/urandom | \
   cut -c2- | tr " " "-" | head -1) ; printf "\n$LUKS_PASS\n\n"
 ```
 
-Questa passphrase verrà utilizzata anche raramente per accedere alla chiave Certify e dovrebbe essere molto complessa.
+Questa passphrase verrà utilizzata raramente per accedere alla chiave Certify e dovrebbe essere molto complessa.
 
 Annotare la passphrase o memorizzarla. 
 
@@ -390,7 +375,7 @@ Formatta la partizione:
 echo $LUKS_PASS | sudo cryptsetup -q luksFormat /dev/sdc1
 ```
 
-Mounta la partizione:
+Monta la partizione:
 
 ```console
 echo $LUKS_PASS | sudo cryptsetup -q luksOpen /dev/sdc1 gnupg-secrets
@@ -402,7 +387,7 @@ Crea un file system ext2:
 sudo mkfs.ext2 /dev/mapper/gnupg-secrets -L gnupg-$(date +%F)
 ```
 
-Monta il filesystem e copia la directory di lavoro temporanea di GnuPG con i materiali chiave:
+Monta il filesystem e copia la directory di lavoro temporanea di GnuPG:
 
 ```console
 sudo mkdir /mnt/encrypted-storage
@@ -424,7 +409,7 @@ Ripeti la procedura per eventuali dispositivi di archiviazione aggiuntivi (se ne
 
 # Esporta la chiave pubblica
 
-**Importante** Senza la chiave pubblica, non sarà possibile utilizzare GnuPG per decrittografare o firmare i messaggi. Tuttavia, YubiKey può ancora essere utilizzata per l'autenticazione SSH. 
+**Importante:** Senza la chiave pubblica, non sarà possibile utilizzare GnuPG per decrittografare o firmare i messaggi. Tuttavia, YubiKey può ancora essere utilizzata per l'autenticazione SSH qualora si usi GnuPG per gestire le chiavi SSH (in questa guida non saremo cosi pazzi da farlo).
 
 Collega un altro dispositivo di archiviazione portatile o crea una nuova partizione su quella esistente. 
 
@@ -462,7 +447,7 @@ Smonta e rimuovi il dispositivo di archiviazione:
 sudo umount /mnt/public
 ```
 
-# Configura YubiKey
+# Configura la YubiKey
 
 Connetti YubiKey e confermane lo stato: 
 
@@ -522,7 +507,7 @@ EOF
 
 Rimuovi e inserisci la Yubikey
 
-**Avviso** sbagliati tre *PIN utente* immessi ne causeranno il blocco e dovranno essere sbloccati con il *PIN amministratore* o con il codice di ripristino. Tre *PIN amministratore* o codici di reimpostazione errati distruggeranno i dati sulla YubiKey. 
+**Avviso:** sbagliati tre *PIN utente* causeranno il blocco e dovra essere sbloccata con il *PIN amministratore* o con il codice di ripristino. Tre *PIN amministratore* o codici di ripristino errati distruggeranno i dati sulla YubiKey. 
 
 Il numero di [tentativi](https://docs.yubico.com/software/yubikey/tools/ykman/OpenPGP_Commands.html#ykman-openpgp-access-set-retries-options-pin-retries-reset-code-retries-admin-pin-retries) può essere modificato, ad esempio a 5 tentativi:
 
@@ -550,7 +535,7 @@ Esegui `gpg --card-status` per verificare i risultati.
 
 # Transferire le sottochiavi
 
-**Importante**  Il trasferimento delle chiavi su YubiKey è un'operazione unidirezionale che converte la chiave su disco in uno stub rendendola non più utilizzabile per il trasferimento su YubiKey successive. Assicurarsi che sia stato effettuato un backup prima di procedere. 
+**Importante:**  Il trasferimento delle chiavi su YubiKey è un'operazione unidirezionale che converte la chiave su disco in uno stub rendendola non più utilizzabile per il trasferimento su YubiKey successive. Assicurarsi che sia stato effettuato un backup prima di procedere. 
 
 Per trasferire le chiavi sono necessari la passphrase della chiave `Certify` e il PIN amministratore. 
 
@@ -601,7 +586,7 @@ EOF
 
 # Verifica trasferimento
 
-Verifica che le sottochiavi siano state spostate su YubiKey con `gpg -K` e creare `ssb>`, per esempio:
+Verifica che le sottochiavi siano state spostate su YubiKey con `gpg -K` e verificare la presenza di `ssb>`, per esempio:
 
 ```console
 sec   rsa4096/0xF0F2CFEB04341FB5 2024-01-01 [C]
@@ -620,18 +605,18 @@ Verifica di aver effettuato quanto segue:
 
 - [ ] Memorizzato o annotato la passphrase della chiave di certificazione (identità) in un luogo sicuro e durevole
   * `echo $CERTIFY_PASS` per rivederla; [`passphrase.html`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.html) o [`passphrase.csv`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.csv) per trascriverla
-- [ ] Passphrase memorizzata o annotata sul volume crittografato su un dispositivo di archiviazione portatile 
+- [ ] Passphrase memorizzata o annotata sul volume crittografato di un dispositivo di archiviazione portatile 
   * `echo $LUKS_PASS` per rivederla; [`passphrase.html`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.html) o [`passphrase.csv`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.csv) per trascriverla
 - [ ] Salvata la chiave di certificazione e le sottochiavi in ​​un archivio portatile crittografato, da conservare offline
   * Si consigliano almeno due backup, archiviati in posizioni separate 
 - [ ] Esportata una copia della chiave pubblica a cui è possibile accedere facilmente in seguito
   * È stato utilizzato un dispositivo separato o una partizione non crittografata
-- [ ] Memorizzato o annotare il PIN utente e il PIN amministratore, che sono univoci e modificati rispetto ai valori predefiniti 
+- [ ] Memorizzato o annotato il PIN utente e il PIN amministratore, che sono univoci e modificati rispetto ai valori predefiniti 
   * `echo $USER_PIN $ADMIN_PIN` per rivederli; [`passphrase.html`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.html) o [`passphrase.csv`](https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/passphrase.csv) per trascriverli
-- [ ]  Spostate le sottochiavi di crittografia, firma e autenticazione sulla YubiKey 
+- [ ]  Spostato le sottochiavi di crittografia, firma e autenticazione sulla YubiKey 
   * `gpg -K` deve mostrare `ssb>` per ognuna delle chiavi
 
-Riavviare per cancellare l'ambiente temporaneo e completare la configurazione.
+Riavviare il sistema per cancellare l'ambiente temporaneo e completare la configurazione.
 
 # Usa la YubiKey
 
@@ -659,7 +644,6 @@ echo "disable-ccid" >>scdaemon.conf
 
 Installa i pacchetti richiesti:
 
-**Debian/Ubuntu**
 
 ```console
 sudo apt update
@@ -668,8 +652,6 @@ sudo apt install -y gnupg gnupg-agent scdaemon pcscd
 ```
 
 Montare il volume non crittografato con la chiave pubblica:
-
-**Debian/Ubuntu**
 
 ```console
 sudo mkdir /mnt/public
@@ -716,7 +698,7 @@ save
 EOF
 ```
 
-Rimuovere e reinserire YubiKey. 
+Rimuovere e reinserire la YubiKey. 
 
 Verificare lo stato con `gpg --card-status` che elencherà le sottochiavi disponibili: 
 
@@ -897,7 +879,7 @@ sudo apt install opensc yubikey-manager
 
 ## Cambio PIN e PUK
 
-Se si tratta di un nuovo Yubikey, modificare la chiave di gestione PIV predefinita, PIN e PUK. 
+Se si tratta di un nuovo Yubikey, modificare PIN e PUK predefiniti del modulo PIV. 
 
 ```console
 ykman piv change-management-key --touch --generate
@@ -925,9 +907,9 @@ Se CCID non è nell'elenco, abilitalo aggiungendo CCID all'elenco, ad esempio:
 ykman mode OTP+FIDO+CCID
 ```
 
-(Ciò presuppone che tu avessi OTP+FIDO in precedenza e che li desideri ancora abilitati.)
+Ciò presuppone che tu avessi OTP+FIDO in precedenza e che li desideri ancora abilitati.
 
-Genera una chiave PIV e genera la chiave pubblica :
+Genera una chiave PIV e genera la chiave pubblica:
 
 ```console
 ykman piv generate-key 9a pubkey.pem
@@ -943,11 +925,15 @@ ykman piv generate-key --touch-policy always 9a pubkey.pem
 
 Per impostazione predefinita, questa è una chiave RSA a 2048 bit. A seconda di quale Yubikey hai, puoi cambiarlo usando `-a` / `--algorithm`.
 
-Genera un certificato X.509 autofirmato per quella chiave. L'unico utilizzo del certificato X.509 è soddisfare PIV/PKCS #11 lib. Deve essere in grado di estrarre la chiave pubblica dalla smartcard e farlo tramite il certificato X.509.
+Utilizzare la chiave `pubkey.pem` appena generata per creare un certificato X.509 autofirmato. L'unico utilizzo del certificato X.509 è agire come identità SSH per la libreria PKCS 11. Deve essere in grado di estrarre la chiave pubblica dalla smartcard e farlo tramite il certificato X.509.
 
 ```console
 ykman piv generate-certificate -s "SSH key" 9a pubkey.pem
 ```
+- Il parametro `-s "SSH key"` include una descrizione leggibile dall'uomo della chiave o della macchina in cui è installata la chiave.
+- Il parametro facoltativo `-d 365` imposta per quanti giorni la chiave sarà valida. Ad esempio il valore *365* specifica che scadrà tra 1 anno.
+
+A questo punto puoi sbarazzarti di pubkey.pem.
 
 Scopri dove è stato installato opensc-pkcs11. Per un sistema basato su Debian, il modulo pkcs11 finisce in /usr/lib/x86_64-linux-gnu.
 
@@ -973,7 +959,7 @@ ssh-copy-id -i ~/.ssh/mykey user@host
 Se la macchina remota permette di accedere solo tramite chiave `ssh-copy-id` non consente di specificare direttamente una chiave per l'accesso, aggiriamo questo problema usando l'opzione `-o`:
 
 ```console
-ssh-copy-id -i ~/.ssh/chiave-opensc -o 'IdentityFile ~/.ssh/chaive-già-presente' user@hostname
+ssh-copy-id -i ~/.ssh/chiave-da-aggiungere -o 'IdentityFile ~/.ssh/chiave-in-uso' user@hostname
 ```
 
 ## Prova ad accedere
@@ -1023,10 +1009,12 @@ Host foo
   ssh-add -s /usr/local/lib/opensc-pkcs11.so
   ```
 
+**Importante:** Assicurati di avere un piano di backup in atto per quando questo YubiKey fallisce o viene perso. La chiave che abbiamo generato è locale per la YubiKey e non può essere esportata. Può essere facilmente cancellata da chiunque usando `ykman piv reset` (che non richiede autenticazione!), oppure potresti perdere la chiave. Assicurati di avere un altro modo per entrare in tutti gli host con cui usi questo YubiKey (chiave SSH regolare crittografata, console fuori banda, ecc.).
+
 
 ## GitHub
 
-YubiKey può essere utilizzato per firmare commit e tag e autenticare SSH su GitHub quando configurato nelle [Impostazioni](https://github.com/settings/keys).
+YubiKey può essere utilizzato per firmare commit e tag e autenticare SSH su GitHub quando configurato nelle [impostazioni](https://github.com/settings/keys).
 
 Configura una chiave di firma:
 
@@ -1034,7 +1022,7 @@ Configura una chiave di firma:
 git config --global user.signingkey $KEYID
 ```
 
-**Importante** `user.email` deve corrispondere all'indirizzo email associato all'identità PGP.
+**Importante:** `user.email` deve corrispondere all'indirizzo email associato all'identità PGP.
 
 Per firmare commit o tag utilizzare l'opzione `-S`.
 
@@ -1076,13 +1064,13 @@ Consulta la discussione nei numeri [#19](https://github.com/drduh/YubiKey-Guide/
 
 ## Email
 
-YubiKey può essere utilizzato per decrittografare e firmare e-mail e allegati utilizzando  [Thunderbird](https://www.thunderbird.net/), [Enigmail](https://www.enigmail.net) e [Mutt](http://www.mutt.org/). Thunderbird supporta l'autenticazione OAuth 2 e può essere utilizzato con Gmail. Consulta [this EFF guide](https://ssd.eff.org/en/module/how-use-pgp-linux) per ulteriori informazioni. Mutt ha il supporto OAuth 2 dalla versione 2.0.
+YubiKey può essere utilizzato per decrittografare e firmare e-mail e allegati utilizzando  [Thunderbird](https://www.thunderbird.net/), [Enigmail](https://www.enigmail.net) e [Mutt](http://www.mutt.org/). Thunderbird supporta l'autenticazione OAuth 2 e può essere utilizzato con Gmail. Consulta questa [guida](https://ssd.eff.org/en/module/how-use-pgp-linux) per ulteriori informazioni. Mutt ha il supporto OAuth 2 dalla versione 2.0.
 
 ### Thunderbird
 
 Segui le [instruzioni sulla wiki di Mozilla](https://wiki.mozilla.org/Thunderbird:OpenPGP:Smartcards#Configure_an_email_account_to_use_an_external_GnuPG_key) per configurare YubiKey con il tuo client Thunderbird utilizzando il provider gpg esterno.
 
-**Important** Thunderbird [non riesce](https://github.com/drduh/YubiKey-Guide/issues/448) a decrittografare le email se l'opzione `armor` è abilitata nel tuo `~/.gnupg/gpg.conf`. Se vedi l'errore `gpg: [don't know]: invalid packet (ctb=2d)` o `message cannot be decrypted (there are unknown problems with this encrypted message)` rimuovi semplicemente questa opzione dal tuo file di configurazione.
+**Importante:** Thunderbird [non riesce](https://github.com/drduh/YubiKey-Guide/issues/448) a decrittografare le email se l'opzione `armor` è abilitata nel tuo `~/.gnupg/gpg.conf`. Se vedi l'errore `gpg: [don't know]: invalid packet (ctb=2d)` o `message cannot be decrypted (there are unknown problems with this encrypted message)` rimuovi semplicemente questa opzione dal tuo file di configurazione.
 
 ## Keyserver
 
@@ -1096,7 +1084,7 @@ gpg --keyserver keys.gnupg.net --send-key $KEYID
 gpg --keyserver hkps://keyserver.ubuntu.com:443 --send-key $KEYID
 ```
 
-Oppure se [si caricano su keys.openpgp.org](https://keys.openpgp.org/about/usage):
+Oppure se si caricano su [keys.openpgp.org](https://keys.openpgp.org/about/usage):
 
 ```console
 gpg --send-key $KEYID | curl -T - https://keys.openpgp.org
@@ -1121,15 +1109,15 @@ gpg/card> quit
 
 # Aggiorna le chiavi
 
-PGP non fornisce [forward secrecy (segretezza in avanti)](https://en.wikipedia.org/wiki/Forward_secrecy), il che significa che una chiave compromessa può essere utilizzata per decrittografare tutti i messaggi passati. Anche se le chiavi memorizzate su YubiKey sono più difficili da sfruttare, non è impossibile: la chiave e il PIN potrebbero essere fisicamente compromessi, oppure potrebbe essere scoperta una vulnerabilità nel firmware o nel generatore di numeri casuali utilizzato per creare le chiavi, ad esempio. Pertanto, si consiglia di ruotare periodicamente le sottochiavi.
+PGP non fornisce [forward secrecy (segretezza in avanti)](https://en.wikipedia.org/wiki/Forward_secrecy), il che significa che una chiave compromessa può essere utilizzata per decrittografare tutti i messaggi passati. Anche se le chiavi memorizzate su YubiKey sono più difficili da sfruttare, non è impossibile: la chiave e il PIN potrebbero essere fisicamente compromessi, oppure potrebbe essere scoperta una vulnerabilità nel firmware o nel generatore di numeri casuali utilizzato per creare le chiavi. Pertanto, si consiglia di ruotare periodicamente le sottochiavi.
 
 Quando una sottochiave scade, può essere rinnovata o sostituita. Entrambe le azioni richiedono l'accesso alla chiave Certify. 
 
 - Il rinnovo delle sottochiavi aggiornando la scadenza indica il possesso continuato della chiave Certify ed è più conveniente. 
 
-- Sostituire le sottochiavi è meno conveniente ma potenzialmente più sicuro: le nuove sottochiavi **non** saranno in grado di decrittografare i messaggi precedenti, autenticarsi con SSH, ecc. I contatti dovranno ricevere la chiave pubblica aggiornata e tutti i segreti crittografati dovranno essere decrittografati e ricodificati nuove sottochiavi per essere utilizzabili. Questo processo è funzionalmente equivalente alla perdita di YubiKey e al provisioning di una nuova. 
+- Sostituire le sottochiavi è meno conveniente ma potenzialmente più sicuro: le nuove sottochiavi **non** saranno in grado di decrittografare i messaggi precedenti, autenticarsi con SSH, ecc. I contatti dovranno ricevere la chiave pubblica aggiornata e tutti i segreti crittografati dovranno essere decrittografati e ricodificati con nuove sottochiavi per essere utilizzabili. Questo processo è funzionalmente equivalente alla perdita di YubiKey e al creazione di una nuova. 
 
-Nessuno dei due metodi di rotazione è superiore e spetta alla filosofia personale sulla gestione delle identità e sulla modellazione delle minacce individuali decidere quale utilizzare o se far scadere le sottochiavi. Idealmente, le sottochiavi sarebbero effimere: utilizzate solo una volta per ogni evento univoco di crittografia, firma e autenticazione, tuttavia in pratica ciò non è realmente pratico né utile con YubiKey. Gli utenti avanzati possono dedicare una macchina con air gap per la rotazione frequente delle credenziali. 
+Nessuno dei due metodi è superiore all'altro e spetta alla filosofia personale sulla gestione delle identità e sulla modellazione delle minacce individuali decidere quale utilizzare o se far scadere le sottochiavi. Idealmente, le sottochiavi sarebbero effimere: utilizzate solo una volta per ogni evento univoco di crittografia, firma e autenticazione, tuttavia in pratica ciò non è realmente pratico né utile con YubiKey. Gli utenti avanzati possono dedicare una macchina con air gap per la rotazione frequente delle credenziali. 
 
 Per rinnovare o ruotare le sottochiavi, seguire lo stesso processo della generazione delle chiavi: avviare in un ambiente sicuro, installare il software richiesto e disabilitare la rete.
 
@@ -1211,7 +1199,7 @@ Trasferisci la chiave pubblica all'host di destinazione e importala:
 gpg --import /mnt/public/*.asc
 ```
 
-In alternativa, pubblica su un server a chiave pubblica e scaricalo:
+In alternativa, pubblica su un server la chiave pubblica e scaricala:
 
 ```console
 gpg --send-key $KEYID
@@ -1298,7 +1286,7 @@ Admin PIN:   12345678
 
 # Indurimento opzionale
 
-The following steps may improve the security and privacy of YubiKey.
+I seguenti passaggi possono migliorare la sicurezza e la privacy della YubiKey.
 
 ## Migliorare l'entropia
 
@@ -1364,7 +1352,7 @@ EOF
 
 Questa sezione si concentra principalmente sui sistemi basati su Debian/Ubuntu, ma lo stesso concetto si applica a qualsiasi sistema connesso a una rete.
 
-Che tu stia utilizzando una VM, installando su hardware dedicato o eseguendo temporaneamente un sistema operativo Live, avvia senza una connessione di rete e disabilita tutti i servizi non necessari in ascolto su tutte le interfacce prima di connetterti alla rete.
+Che tu stia utilizzando una VM, hardware dedicato o eseguendo temporaneamente un sistema operativo Live, avvia senza una connessione di rete e disabilita tutti i servizi non necessari in ascolto su tutte le interfacce prima di connetterti alla rete.
 
 Il motivo di ciò è perché servizi come cups o avahi possono essere in ascolto per impostazione predefinita. Anche se questo non è un problema immediato, allarga semplicemente la superficie di attacco. Non tutti avranno una sottorete dedicata o apparecchiature di rete affidabili da poter controllare e, ai fini di questa guida, questi passaggi trattano qualsiasi rete come non affidabile/ostile. 
 
@@ -1374,7 +1362,7 @@ Il motivo di ciò è perché servizi come cups o avahi possono essere in ascolto
 - Se il servizio non esiste riceverai un messaggio "Impossibile arrestare", il che va bene
 - Disabilita il `Bluetooth` se non ne hai bisogno 
 
-```bash
+```cosole
 sudo systemctl stop bluetooth exim4 cups avahi avahi-daemon sshd
 ```
 
@@ -1388,7 +1376,7 @@ Su Ubuntu, `ufw` è integrato ed è facile da abilitare:
 sudo ufw enable
 ```
 
-Sui sistemi senza `ufw`, `nftables` sta sostituendo `iptables`. La [ wiki di nftables contiene esempi](https://wiki.nftables.org/wiki-nftables/index.php/Simple_ruleset_for_a_workstation) di criteri di base per negare l'ingresso e consentire l'uscita. Il `fw.inet.basic` la politica copre sia IPv4 che IPv6.
+Sui sistemi senza `ufw`, `nftables` sta sostituendo `iptables`. La [ wiki di nftables contiene esempi](https://wiki.nftables.org/wiki-nftables/index.php/Simple_ruleset_for_a_workstation) di criteri di base per negare l'ingresso e consentire l'uscita. La policy di `fw.inet.basic` copre sia IPv4 che IPv6.
 
 (Ricordati di scaricare questo README e qualsiasi altra risorsa su un'altra unità esterna durante la creazione del supporto di avvio, per avere queste informazioni pronte per l'uso offline)
 
@@ -1467,7 +1455,7 @@ Ora connettiti a una rete.
 
 - Se ricevi l'errore, `Permission denied (publickey)`, aumenta la verbosità di ssh con il file -v contrassegnare e verificare che venga offerta la chiave pubblica della carta: `Offering public key: RSA SHA256:abcdefg... cardno:00060123456`. In tal caso, verificare l'utente corretto del sistema di destinazione, non l'utente del sistema locale. Altrimenti assicurati che `IdentitiesOnly` non sia [abilitato](https://github.com/FiloSottile/whosthere#how-do-i-stop-it) per questo host.
 
--Se l'autenticazione SSH continua a fallire, aggiungi fino a 3 `-v` bandiere al comando `ssh` per aumentare la verbosità. 
+- Se l'autenticazione SSH continua a fallire, aggiungi fino a 3 `-v` bandiere al comando `ssh` per aumentare la verbosità. 
 
 - Se il problema persiste, potrebbe essere utile interrompere lo sfondo `sshd` servizio di processo daemon sul server (ad esempio usando `sudo systemctl stop sshd`) e avviarlo invece in primo piano con un ampio output di debug, utilizzando `/usr/sbin/sshd -eddd`. Tieni presente che il server non si biforcherà ed elaborerà solo una connessione, pertanto dovrà essere riavviato dopo ciascuna `ssh` test. 
 
@@ -1477,10 +1465,10 @@ Ora connettiti a una rete.
 
 - Se, quando si utilizza una YubiKey precedentemente fornita su un nuovo computer con `pass`, viene visualizzato il seguente errore su `pass insert`, è necessario modificare l'attendibilità associata alla chiave. Vedi la nota sopra. 
 
-```console
-gpg: 0x0000000000000000: There is no assurance this key belongs to the named user
-gpg: [stdin]: encryption failed: Unusable public key
-```
+  ```console
+  gpg: 0x0000000000000000: There is no assurance this key belongs to the named user
+  gpg: [stdin]: encryption failed: Unusable public key
+  ```
 
 - Se ricevi l'errore, `gpg: 0x0000000000000000: skipped: Unusable public key`, `signing failed: Unusable secret key`, o `encryption failed: Unusable public key` la sottochiave potrebbe essere scaduta e non può più essere utilizzata per crittografare o firmare messaggi. Può comunque essere utilizzato per decrittografare e autenticare. 
 
@@ -1488,22 +1476,22 @@ gpg: [stdin]: encryption failed: Unusable public key
 
 - Se, quando provi quanto sopra `--card-status` comando, riceverai l'errore, `gpg: selecting card failed: No such device` o `gpg: OpenPGP card not available: No such device`, è possibile che l'ultima versione di pcscd richieda ora le regole polkit per funzionare correttamente. Crea il seguente file per consentire agli utenti di accedere al file `wheel` gruppo per utilizzare la carta. Assicurati di riavviare pcscd quando hai finito per consentire alle nuove regole di avere effetto. 
 
-```console
-cat << EOF >  /etc/polkit-1/rules.d/99-pcscd.rules
-polkit.addRule(function(action, subject) {
-        if (action.id == "org.debian.pcsc-lite.access_card" &&
-                subject.isInGroup("wheel")) {
-                return polkit.Result.YES;
-        }
-});
-polkit.addRule(function(action, subject) {
-        if (action.id == "org.debian.pcsc-lite.access_pcsc" &&
-                subject.isInGroup("wheel")) {
-                return polkit.Result.YES;
-        }
-});
-EOF
-```
+  ```console
+  cat << EOF >  /etc/polkit-1/rules.d/99-pcscd.rules
+  polkit.addRule(function(action, subject) {
+          if (action.id == "org.debian.pcsc-lite.access_card" &&
+                  subject.isInGroup("wheel")) {
+                  return polkit.Result.YES;
+          }
+  });
+  polkit.addRule(function(action, subject) {
+          if (action.id == "org.debian.pcsc-lite.access_pcsc" &&
+                  subject.isInGroup("wheel")) {
+                  return polkit.Result.YES;
+          }
+  });
+  EOF
+  ```
 
 - Se la chiave pubblica viene persa, segui [questa guida](https://www.nicksherlock.com/2021/08/recovering-lost-gpg-public-keys-from-your-yubikey/) per recuperarla da YubiKey
 
@@ -1512,7 +1500,7 @@ EOF
 # Soluzioni alternative
 
 * [`drduh/YubiKey-Guide`](https://github.com/drduh/YubiKey-Guide) - la guida principale utilizzata per redirigere questa guida
-* [`jamesog/yubikey-ssh`](https://github.com/jamesog/yubikey-ssh) - un ottima guida per usare ssh con il modulo PIV della Yubikey
+* [`jamesog/yubikey-ssh`](https://github.com/jamesog/yubikey-ssh) - un ottima guida che spiega come usare ssh con il modulo PIV della Yubikey
 * [`vorburger/ed25519-sk.md`](https://github.com/vorburger/vorburger.ch-Notes/blob/develop/security/ed25519-sk.md) -  usa YubiKey per SSH senza GnuPG 
 * [`smlx/piv-agent`](https://github.com/smlx/piv-agent) - Agente SSH e GnuPG che può essere utilizzato con dispositivi PIV 
 * [`keytotpm`](https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html) - utilizzare GnuPG con sistemi TPM
