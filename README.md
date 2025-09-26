@@ -3,6 +3,7 @@ Questa è una guida all'utilizzo [YubiKey](https://www.yubico.com/products/ident
 Le chiavi salvate nella Yubikey [non sono esportabili](https://web.archive.org/web/20201125172759/https://support.yubico.com/hc/en-us/articles/360016614880-Can-I-Duplicate-or-Back-Up-a-YubiKey-), a differenza delle credenziali basate su file system, pur rimanendo conveniente per l'uso quotidiano. YubiKey può essere configurato per richiedere un tocco fisico per le operazioni crittografiche, riducendo il rischio di compromissione delle credenziali.
 
 - [Acquistare una YubiKey](#acquistare-yubikey)
+- [Panoramica dei protocolli supportati](#panoramica-dei-protocolli-supportati)
 - [Preparazione](#preparazione)
 - [Installare il software](#installare-il-software)
 - [Preparare GnuPG](#preparare-gnupg)
@@ -61,6 +62,59 @@ Le attuali [Yubikey](https://www.yubico.com/store/compare/) ad eccezione della s
 [Verifica la Yubikey](https://support.yubico.com/hc/en-us/articles/360013723419-How-to-Confirm-Your-Yubico-Device-is-Genuine) visitando [yubico.com/genuine](https://www.yubico.com/genuine/). Seleziona *Verify Device* per iniziare il processo. Tocca YubiKey quando richiesto e consenti al sito di vedere la marca e il modello del dispositivo quando richiesto. Questa attestazione del dispositivo può aiutare a mitigare un [supply chain attacks](https://media.defcon.org/DEF%20CON%2025/DEF%20CON%2025%20presentations/DEF%20CON%2025%20-%20r00killah-and-securelyfitz-Secure-Tokin-and-Doobiekeys.pdf).
 
 Si consigliano inoltre diversi dispositivi di archiviazione portatili (come le schede microSD) per l'archiviazione di backup crittografati.
+
+# Panoramica dei protocolli supportati
+
+La **YubiKey 5 NFC** supporta diversi protocolli di autenticazione e cifratura, ciascuno pensato per specifici scenari di sicurezza. Ecco una panoramica dei principali:
+
+### OTP (One-Time Password)
+L'OTP è una password valida per una sola sessione o transazione. YubiKey supporta due modalità:
+- **Yubico OTP**: un protocollo proprietario che genera un codice OTP crittografato e firmato.
+- **HOTP/TOTP (tramite OATH)**: standard aperti basati su HMAC (HOTP) o tempo (TOTP), compatibili con molti gestori di autenticazione (come Google Authenticator, etc.).
+
+### OATH (HOTP / TOTP)
+La YubiKey può memorizzare fino a:
+- **32 credenziali TOTP** (Time-based One-Time Password)
+- **64 credenziali HOTP** (Event-based One-Time Password)
+
+> ⚠️ **Nota**: Questi limiti sono condivisi, quindi ad esempio 16 TOTP + 32 HOTP usano la memoria disponibile in modo proporzionale.
+
+### FIDO2 / U2F
+- **U2F (Universal 2nd Factor)**: protocollo di seconda generazione sviluppato da FIDO Alliance, usato da molti servizi (Google, GitHub, ecc.).
+- **FIDO2**: evoluzione di U2F che supporta l'autenticazione passwordless ovvero sensa password (tramite WebAuthn + CTAP2). Viene utilizzato in sistemi come Microsoft, Google, Saleforce.com ...
+  
+La YubiKey può registrare **fino a 25 credenziali residenti FIDO2** (ovvero salvate direttamente sulla chiave, utile per il login passwordless).
+
+### OpenPGP
+Permette di generare o importare chiavi PGP (RSA, ECC) per:
+- Firma digitale
+- Cifratura
+- Autenticazione SSH
+
+La YubiKey 5 NFC supporta fino a **3 slot PGP separati** (signature, encryption, authentication) con supporto a chiavi fino a 4096 bit RSA o curve elliptiche (ECC).
+
+### PIV (Personal Identity Verification)
+Protocollo utilizzato in ambienti enterprise/governativi, compatibile con smartcard per:
+- Autenticazione
+- Firma digitale
+- Cifratura
+- Login a sistemi (Windows Smart Card login, ecc.)
+
+Supporta **24 certificati PIV** (uno per slot), inclusa una chiave di autenticazione esterna.
+
+---
+
+## Limiti di Memoria della YubiKey 5 NFC
+
+La YubiKey 5 NFC ha una memoria non espandibile e limitata, **condivisa tra alcune funzionalità**:
+
+- **OTP (Yubico OTP + Static Password)**: 2 slot configurabili
+- **OATH-TOTP/HOTP**: massimo 32 TOTP o 64 HOTP (o combinazioni intermedie)
+- **FIDO2**: fino a 25 credenziali residenti
+- **OpenPGP**: 3 chiavi (sign, encrypt, auth)
+- **PIV**: 24 certificati
+
+> ⚠️ **Nota importante**: alcune funzionalità non possono essere usate simultaneamente in modo esteso se la memoria è piena. Ad esempio, avere molte credenziali FIDO2 può impedire di salvare ulteriori chiavi OATH o PIV.
 
 # Preparazione
 
